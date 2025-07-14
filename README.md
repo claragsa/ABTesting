@@ -26,4 +26,4 @@ Columns Description
   - no: 1 if the user chooses the “No” radio button for the BIO questionnaire.
 
 ### Conversion Rate
-
+![Converion Rate by Experiment Group](conv_rate.png)
