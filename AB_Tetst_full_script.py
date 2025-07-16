@@ -2,9 +2,9 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from statsmodels.stats.power import TTestIndPower
 from scipy import stats
-
+from statsmodels.stats.power import NormalIndPower
+from statsmodels.stats.proportion import proportion_effectsize, proportions_ztest
 ##---------------------Load e Extraction
 df = pd.read_csv(r'data\raw\AdSmartABdata - AdSmartABdata.csv')
 
@@ -80,9 +80,9 @@ width = 0.25  # the width of the bars
 
 fig, ax = plt.subplots(figsize=(10, 6))
 
-ax.bar(x-width, total_rate, width, label= 'Responded')
-ax.bar(x, yes_rate, width, label= 'Yes')
-ax.bar(x+width, no_rate, width, label= 'No')
+ax.bar(x-width, total_rate, width, label= 'Responded', color = 'blue')
+ax.bar(x, yes_rate, width, label= 'Yes', color = 'green')
+ax.bar(x+width, no_rate, width, label= 'No', color = 'red')
 
 ax.set_xticks(x)
 ax.set_xticklabels(groups)
@@ -94,43 +94,45 @@ plt.tight_layout()
 plt.show()
 
 ##---------------------Statistical Tests
-#---------Means and Standard Deviations Calculation---------
+#---------Data preparation---------
 df['responded'] = df[['yes', 'no']].sum(axis=1)
 df['responded'] = df['responded'].apply(lambda x: 1 if x >=  1 else 0)
-mean_responded = df.groupby('experiment')['responded'].mean()
 
-df['not_responded'] = df['responded'].apply(lambda x: 1 if x == 0 else 0)
-mean_notresponded = df.groupby('experiment')['not_responded'].mean()
+#group counts
+control = df[df['experiment'] == 'control']
+exposed = df[df['experiment'] == 'exposed']
 
-print(f"Mean Responded:{mean_responded}")
-print(f"\nMean Not Responded:{mean_notresponded}")
+#conversions and users per group
+conversions = [exposed['responded'].sum(), control['responded'].sum() ]
+nobs = [len(exposed), len(control)]
 
-std_dev_responded = df.groupby('experiment')['responded'].std()
-std_dev_notresponded = df.groupby('experiment')['not_responded'].std()
+#conversion rates
+control_cr = conversions[1]/nobs[1]
+exposed_cr = conversions[0]/nobs[0]
 
-print(f"\nStandard Deviation Responded:{std_dev_responded}")
-print(f"\nStandard Deviation Not Responded:{std_dev_notresponded}")
-#---------Pooled Standard Deviation Calculation---------
-n1 = 4071 # control group size
-n2 = 4006 # exposed group size
-s1 = 0.351077 #standard deviation control group
-s2 = 0.370325  #standard deviation exposed group
+print(f'Conversion Rate Control: {control_cr:.2%}')
+print(f'Conversion Rate Exposed: {exposed_cr:.2%}')
+print(f'Absolute Difference: {exposed_cr - control_cr:.2%}')
 
-S_combined_responded = np.sqrt(
-    ((n1-1)*s1**2 + (n2-1)*s2**2)/(n1+n2 -2)
-)
+#---------Unilateral Testing---------
+z_stat, p_value = proportions_ztest(count = conversions, nobs = nobs, alternative = 'larger')
+print(f'\nZ-statistic:{z_stat:.4f}')
+print(f'P-value: {p_value:.4f}')
 
-print(f"\nResponded Pooled Standard: {S_combined_responded:.4f}")
-#---------Effect Size---------
-effect_size_responded = (mean_responded['exposed'] - mean_responded['control'])/S_combined_responded
-print(f'Cohen\'s d for Responded: {effect_size_responded:.2f}')
+if p_value < 0.05:
+    print('Result: Sucess to reject the null hypothesis. There is a significant difference in conversions.')
+else:
+    print('Result: Fail to reject the null hypothesis. There is no significant difference in conversions.')
+
 #---------Statistical Power---------
-analysis = TTestIndPower()
-power = analysis.power(effect_size = effect_size_responded, nobs1=n1, alpha=0.096) #alpha > 0.05 for study purposes (can't increase sample size)
-print(f'Statistical Power: {power:.2f}')
-#---------Testing Hypothesis---------
-control = df.loc[df['experiment'] == 'control', 'responded'].values
-exposed = df.loc[df['experiment'] == 'exposed', 'responded'].values
+effect_size_responded = proportion_effectsize(exposed_cr, control_cr)
+analysis = NormalIndPower()
+power = analysis.power(effect_size = effect_size_responded, nobs1=nobs[0], alpha = 0.05, ratio = nobs[1]/nobs[0], alternative= 'larger')
 
-t_stat, p_value = stats.ttest_ind(control, exposed, equal_var=False)
-print(f't = {t_stat:.3f}, p-value = {p_value:.3f}')
+print(f'\nCohen\'s h (effect size): {effect_size_responded:.4f}')
+print(f'Statistical Power: {power:.4f}')
+
+if power >= 0.80:
+    print('The statistical power is sufficient (greater than 80%)')
+else:
+    print('The statistical power is insufficient (less than 80%)')
