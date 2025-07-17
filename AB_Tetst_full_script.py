@@ -4,7 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
 from statsmodels.stats.power import NormalIndPower
-from statsmodels.stats.proportion import proportion_effectsize, proportions_ztest
+from statsmodels.stats.proportion import proportion_effectsize, proportions_ztest, proportion_confint
+
 ##---------------------Load e Extraction
 df = pd.read_csv(r'data\raw\AdSmartABdata - AdSmartABdata.csv')
 
@@ -80,13 +81,13 @@ width = 0.25  # the width of the bars
 
 fig, ax = plt.subplots(figsize=(10, 6))
 
-ax.bar(x-width, total_rate, width, label= 'Responded', color = 'blue')
-ax.bar(x, yes_rate, width, label= 'Yes', color = 'green')
-ax.bar(x+width, no_rate, width, label= 'No', color = 'red')
+ax.bar(x-width, total_rate, width, label= 'Responded', color = "#54ADF6")
+ax.bar(x, yes_rate, width, label= 'Yes', color = '#4CAF50')
+ax.bar(x+width, no_rate, width, label= 'No', color = "#ED5F55")
 
 ax.set_xticks(x)
 ax.set_xticklabels(groups)
-ax.set_ylabel('COnversion Rate (%)')
+ax.set_ylabel('Conversion Rate (%)')
 ax.set_xlabel('Experiment Group')
 ax.set_title('Conversion Rate by Experiment Group')
 ax.legend()
@@ -136,3 +137,21 @@ if power >= 0.80:
     print('The statistical power is sufficient (greater than 80%)')
 else:
     print('The statistical power is insufficient (less than 80%)')
+
+#---------Conversion Rate Visualization---------
+lower, upper = proportion_confint(conversions, nobs, alpha=0.05, method='wilson')
+
+groups = ['Exposed', 'Control']
+conversion_rates = [exposed_cr, control_cr]
+error_lower = conversion_rates - lower
+error_upper = upper - conversion_rates
+error = [error_lower, error_upper]
+
+plt.figure(figsize=(8,5))
+plt.bar(groups, conversion_rates, yerr=error, capsize =5, color = ['#4CAF50', '#2196F3'])
+plt.ylabel('Conversion Rate')
+plt.title('Conversion Rates by Group (95% CI)')
+plt.ylim(0, max(upper) + 0.05)
+
+for i, rate in enumerate(conversion_rates):
+    plt.text(i, rate +0.015,
